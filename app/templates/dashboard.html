@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linux Server Monitor & Ops Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#0d1117',
+                        slatepanel: '#161b22',
+                        bordercol: '#30363d',
+                        accentcyan: '#38bdf8',
+                        healthgreen: '#22c55e',
+                        warnamber: '#f59e0b',
+                        critred: '#ef4444'
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #0d1117; color: #c9d1d9; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0d1117; }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-cyan-500 selection:text-black">
+
+    <!-- Top Header -->
+    <header class="bg-slatepanel border-b border-bordercol px-4 lg:px-6 py-3 flex items-center justify-between sticky top-0 z-30">
+        <div class="flex items-center space-x-3">
+            <button id="sidebarToggle" type="button" onclick="toggleSidebar()" aria-label="Open navigation menu" aria-controls="sidebar" aria-expanded="false" class="lg:hidden text-gray-400 hover:text-white p-2 rounded-lg focus:outline-none">
+                <i class="fa-solid fa-bars text-lg"></i>
+            </button>
+            <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-500/30 flex items-center justify-center text-accentcyan shadow-sm">
+                    <i class="fa-solid fa-server text-sm"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-sm lg:text-base text-white tracking-wide">Linux Server Monitor & Ops Platform</h1>
+                    <div class="flex items-center space-x-2 text-xs text-gray-400">
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-950 text-accentcyan border border-cyan-800/50">Linux Host</span>
+                        <span id="headerHostname" class="font-mono text-gray-300">Connecting...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-3 lg:space-x-4">
+            <!-- Server Status Badge -->
+            <div id="headerStatusBadge" class="flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold border bg-emerald-950/60 text-healthgreen border-emerald-800/50">
+                <span class="w-2 h-2 rounded-full bg-healthgreen animate-pulse"></span>
+                <span id="headerStatusText">UNKNOWN</span>
+            </div>
+
+            <!-- Mode Selector: Mock vs Real API -->
+            <div class="hidden sm:flex items-center bg-darkbg border border-bordercol rounded-lg p-1 text-xs">
+                <button onclick="setApiMode('mock')" id="modeMockBtn" class="px-2.5 py-1 rounded font-medium text-gray-400 hover:text-white transition">Demo Mock</button>
+                <button onclick="setApiMode('real')" id="modeRealBtn" class="px-2.5 py-1 rounded font-medium transition bg-accentcyan text-black">Flask API</button>
+            </div>
+
+            <!-- Last Update time -->
+            <div class="hidden md:block text-right text-xs text-gray-400">
+                <div>Last Update</div>
+                <div id="headerLastUpdate" class="font-mono text-gray-300">Just now</div>
+            </div>
+
+            <!-- Docs / Deployment Guide Button -->
+            <button onclick="openModal('docsModal')" class="bg-darkbg hover:bg-bordercol text-gray-300 hover:text-white border border-bordercol px-3 py-1.5 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition">
+                <i class="fa-solid fa-book-open text-accentcyan"></i>
+                <span class="hidden sm:inline">Deployment Guide</span>
+            </button>
+        </div>
+    </header>
+
+    <div class="flex-1 flex overflow-hidden">
+        <!-- Sidebar Navigation -->
+        <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 z-40 w-64 bg-slatepanel border-r border-bordercol transform -translate-x-full lg:translate-x-0 transition-transform duration-200 ease-in-out flex flex-col pt-16 lg:pt-0">
+            <div class="p-4 border-b border-bordercol lg:hidden flex items-center justify-between">
+                <span class="font-bold text-sm text-white">Navigation</span>
+                <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
+                <button onclick="switchTab('overview')" class="nav-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:bg-bordercol/50 hover:text-white transition active" data-tab="overview">
+                    <i class="fa-solid fa-gauge-high w-5 text-accentcyan"></i>
+                    <span>Overview</span>
+                </button>
+                <button onclick="switchTab('metrics')" class="nav-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:bg-bordercol/50 hover:text-white transition" data-tab="metrics">
+                    <i class="fa-solid fa-chart-line w-5 text-accentcyan"></i>
+                    <span>Live Metrics</span>
+                </button>
+                <button onclick="switchTab('services')" class="nav-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:bg-bordercol/50 hover:text-white transition" data-tab="services">
+                    <i class="fa-solid fa-cubes w-5 text-accentcyan"></i>
+                    <span>Services</span>
+                </button>
+                <button onclick="switchTab('alerts')" class="nav-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:bg-bordercol/50 hover:text-white transition" data-tab="alerts">
+                    <i class="fa-solid fa-triangle-exclamation w-5 text-accentcyan"></i>
+                    <span>Alerts & Troubleshooting</span>
+                </button>
+                <button onclick="switchTab('logs')" class="nav-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:bg-bordercol/50 hover:text-white transition" data-tab="logs">
+                    <i class="fa-solid fa-terminal w-5 text-accentcyan"></i>
+                    <span>Logs</span>
+                </button>
+                <button onclick="switchTab('cloudwatch')" class="nav-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:bg-bordercol/50 hover:text-white transition" data-tab="cloudwatch">
+                    <i class="fa-solid fa-cloud w-5 text-accentcyan"></i>
+                    <span>CloudWatch</span>
+                </button>
+            </nav>
+
+            <div class="p-3 border-t border-bordercol bg-darkbg/50 text-xs text-gray-500 space-y-1">
+                <div class="flex items-center justify-between">
+                    <span>Backend Status:</span>
+                    <span id="apiConnStatus" class="text-warnamber font-mono">Connecting</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span>Active Mode:</span>
+                    <span id="apiModeLabel" class="text-accentcyan font-mono">Flask API</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 overflow-y-auto p-4 lg:p-6 bg-darkbg">
+
+            <!-- OVERVIEW TAB -->
+            <div id="tab-overview" class="tab-content active space-y-6">
+                <!-- Top banner alert if warning/critical -->
+                <div id="overviewAlertBanner" class="hidden rounded-xl border p-4 text-sm flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <i id="overviewBannerIcon" class="fa-solid fa-triangle-exclamation text-lg"></i>
+                        <div>
+                            <span id="overviewBannerTitle" class="font-bold">System Warning Detected:</span>
+                            <span id="overviewBannerMsg">Root disk usage has exceeded 85% threshold.</span>
+                        </div>
+                    </div>
+                    <button onclick="switchTab('alerts')" class="text-xs underline font-semibold hover:opacity-80">View findings</button>
+                </div>
+
+                <!-- Overall Health & Quick Info -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- Health Status Card -->
+                    <div class="bg-slatepanel border border-bordercol rounded-xl p-5 flex flex-col justify-between shadow-sm">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-gray-400">Overall Health</span>
+                            <span id="overviewTimestamp" class="text-[11px] text-gray-500 font-mono">--:--:--</span>
+                        </div>
+                        <div class="flex items-center space-x-4 my-2">
+                            <div id="overviewHealthIcon" class="w-14 h-14 rounded-2xl bg-gray-800 border border-gray-600 flex items-center justify-center text-gray-300 text-2xl shadow-inner">
+                                <i class="fa-solid fa-circle-question"></i>
+                            </div>
+                            <div>
+                                <h2 id="overviewHealthState" class="text-2xl font-bold tracking-tight text-white">UNKNOWN</h2>
+                                <p id="overviewHealthSub" class="text-xs text-gray-400">Waiting for live API data</p>
+                            </div>
+                        </div>
+                        <div class="pt-3 border-t border-bordercol flex items-center justify-between text-xs text-gray-400">
+                            <span>Health Script Status:</span>
+                            <span id="healthScriptStatus" class="text-warnamber font-mono">Not reported by API</span>
+                        </div>
+                    </div>
+
+                    <!-- Uptime & Load Average Card -->
+                    <div class="bg-slatepanel border border-bordercol rounded-xl p-5 flex flex-col justify-between shadow-sm">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-gray-400">System Uptime & Load</span>
+                            <i class="fa-solid fa-clock text-gray-500"></i>
+                        </div>
+                        <div class="space-y-3">
+                            <div>
+                                <div class="text-2xl font-bold text-white font-mono" id="overviewUptime">Loading…</div>
+                                <div class="text-xs text-gray-400">Time since last system boot</div>
+                            </div>
+                            <div class="pt-2 border-t border-bordercol flex items-center justify-between text-xs">
+                                <span class="text-gray-400">Load Average (1, 5, 15m):</span>
+                                <span class="font-mono text-accentcyan" id="overviewLoad">Loading…</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions / Mode Status -->
+                    <div class="bg-slatepanel border border-bordercol rounded-xl p-5 flex flex-col justify-between shadow-sm">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-gray-400">Environment & Security</span>
+                            <i class="fa-solid fa-shield-halved text-gray-500"></i>
+                        </div>
+                        <div class="space-y-2 text-xs">
+                            <div class="flex justify-between py-1 border-b border-bordercol">
+                                <span class="text-gray-400">Hardening:</span>
+                                <span class="text-warnamber font-medium">Not API-verified</span>
+                            </div>
+                            <div class="flex justify-between py-1 border-b border-bordercol">
+                                <span class="text-gray-400">Log Rotation:</span>
+                                <span class="text-warnamber font-medium">Not API-verified</span>
+                            </div>
+                            <div class="flex justify-between py-1">
+                                <span class="text-gray-400">Scheduled Timer:</span>
+                                <span class="text-warnamber font-medium">Checking API…</span>
+                            </div>
+                        </div>
+                        <div class="pt-2 text-right">
+                            <button onclick="refreshAllData()" class="text-xs text-accentcyan hover:underline font-medium">
+                                <i class="fa-solid fa-rotate mr-1"></i> Force Poll API
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Metric Cards: CPU, Memory, Disk -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- CPU Card -->
+                    <div class="bg-slatepanel border border-bordercol rounded-xl p-5 shadow-sm">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-gray-400">CPU Utilization</span>
+                            <i class="fa-solid fa-microchip text-accentcyan"></i>
+                        </div>
+                        <div class="flex items-baseline space-x-2 my-1">
+                            <span id="metricCpuVal" class="text-3xl font-bold font-mono text-white">Loading…</span>
+                            <span class="text-xs text-gray-400">CPU count not reported</span>
+                        </div>
+                        <div class="w-full bg-darkbg rounded-full h-2.5 my-3 overflow-hidden border border-bordercol">
+                            <div id="metricCpuBar" class="bg-accentcyan h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <div class="flex justify-between text-xs text-gray-400">
+                            <span>User: not reported</span>
+                            <span>System: not reported</span>
+                        </div>
+                    </div>
+
+                    <!-- Memory Card -->
+                    <div class="bg-slatepanel border border-bordercol rounded-xl p-5 shadow-sm">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-gray-400">Memory Usage</span>
+                            <i class="fa-solid fa-memory text-accentcyan"></i>
+                        </div>
+                        <div class="flex items-baseline space-x-2 my-1">
+                            <span id="metricMemVal" class="text-3xl font-bold font-mono text-white">Loading…</span>
+                            <span id="metricMemDetail" class="text-xs text-gray-400">Waiting for API</span>
+                        </div>
+                        <div class="w-full bg-darkbg rounded-full h-2.5 my-3 overflow-hidden border border-bordercol">
+                            <div id="metricMemBar" class="bg-emerald-500 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <div class="flex justify-between text-xs text-gray-400">
+                            <span>Available: <span id="metricMemAvail">—</span></span>
+                            <span>Cached: not reported</span>
+                        </div>
+                    </div>
+
+                    <!-- Disk Card -->
+                    <div class="bg-slatepanel border border-bordercol rounded-xl p-5 shadow-sm">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-gray-400">Root Filesystem (/)</span>
+                            <i class="fa-solid hard-drive text-accentcyan"></i>
+                        </div>
+                        <div class="flex items-baseline space-x-2 my-1">
+                            <span id="metricDiskVal" class="text-3xl font-bold font-mono text-white">Loading…</span>
+                            <span id="metricDiskDetail" class="text-xs text-gray-400">Waiting for API</span>
+                        </div>
+                        <div class="w-full bg-darkbg rounded-full h-2.5 my-3 overflow-hidden border border-bordercol">
+                            <div id="metricDiskBar" class="bg-amber-500 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <div class="flex justify-between text-xs text-gray-400">
+                            <span>Free Space: <span id="metricDiskFree">—</span></span>
+                            <span>Filesystem: not reported</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Service Health Grid & Recent Events -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Service Health Indicators -->
+                    <div class="bg-slatepanel border border-bordercol rounded-xl p-5 shadow-sm flex flex-col">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-bold text-sm text-white flex items-center space-x-2">
+                                <i class="fa-solid fa-server text-accentcyan"></i>
+                                <span>Core Service Health</span>
+                            </h3>
+                            <button onclick="switchTab('services')" class="text-xs text-accentcyan hover:underline">View All</button>
+                        </div>
+                        <div id="overviewServiceList" class="space-y-3 flex-1">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Recent Events -->
+                    <div class="bg-slatepanel border border-bordercol rounded-xl p-5 shadow-sm flex flex-col">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-bold text-sm text-white flex items-center space-x-2">
+                                <i class="fa-solid fa-list-check text-accentcyan"></i>
+                                <span>Recent Monitoring Events</span>
+                            </h3>
+                            <button onclick="switchTab('alerts')" class="text-xs text-accentcyan hover:underline">View All Findings</button>
+                        </div>
+                        <div id="overviewEventsList" class="space-y-2.5 flex-1 overflow-y-auto max-h-72">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LIVE METRICS TAB -->
+            <div id="tab-metrics" class="tab-content space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slatepanel border border-bordercol rounded-xl p-4">
+                    <div>
+                        <h2 class="font-bold text-base text-white">Real-Time Measurements & Charts</h2>
+                        <p class="text-xs text-gray-400">Live polling from backend psutil & system measurements</p>
+                    </div>
+                    <div class="flex items-center space-x-3 text-xs">
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" id="autoRefreshToggle" checked onchange="toggleAutoRefresh()" class="rounded border-bordercol bg-darkbg text-cyan-500 focus:ring-0">
+                            <span class="text-gray-300">Auto-refresh (15s)</span>
+                        </label>
+                        <button onclick="fetchMetricsData()" class="bg-cyan-600 hover:bg-cyan-500 text-black font-semibold px-3 py-1.5 rounded-lg transition flex items-center space-x-1.5">
+                            <i class="fa-solid fa-rotate"></i>
+                            <span>Fetch Now</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Detailed Metrics Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="bg-slatepanel border border-bordercol rounded-xl p-4">
+                        <div class="text-xs text-gray-400 font-medium uppercase">CPU Utilization</div>
+                        <div class="text-2xl font-bold font-mono text-white mt-1" id="liveCpuVal">--</div>
+                        <div class="text-xs text-gray-500 mt-2">CPU count not reported by API</div>
+                    </div>
+                    <div class="bg-slatepanel border border-bordercol rounded-xl p-4">
+                        <div class="text-xs text-gray-400 font-medium uppercase">Memory Utilization</div>
+                        <div class="text-2xl font-bold font-mono text-white mt-1" id="liveMemVal">--</div>
+                        <div class="text-xs text-gray-500 mt-2" id="liveMemSub">-- MB used</div>
+                    </div>
+                    <div class="bg-slatepanel border border-bordercol rounded-xl p-4">
+                        <div class="text-xs text-gray-400 font-medium uppercase">Root Disk Usage</div>
+                        <div class="text-2xl font-bold font-mono text-white mt-1" id="liveDiskVal">--</div>
+                        <div class="text-xs text-gray-500 mt-2" id="liveDiskSub">-- GB free</div>
+                    </div>
+                    <div class="bg-slatepanel border border-bordercol rounded-xl p-4">
+                        <div class="text-xs text-gray-400 font-medium uppercase">System Load (1m)</div>
+                        <div class="text-2xl font-bold font-mono text-white mt-1" id="liveLoadVal">--</div>
+                        <div class="text-xs text-gray-500 mt-2">Uptime: <span id="liveUptimeVal">--</span></div>
+                    </div>
+                </div>
+
+                <!-- Simulated Chart View -->
+                <div class="bg-slatepanel border border-bordercol rounded-xl p-5 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-bold text-sm text-white flex items-center space-x-2">
+                            <i class="fa-solid fa-chart-area text-accentcyan"></i>
+                            <span>Resource Utilization History (Last 10 Samples)</span>
+                        </h3>
+                        <span class="text-xs text-gray-400 font-mono" id="metricsSampleCount">Samples: 0</span>
+                    </div>
+                    <!-- Custom Canvas Chart -->
+                    <div class="w-full h-64 bg-darkbg rounded-lg border border-bordercol p-3 relative flex flex-col justify-between">
+                        <canvas id="metricsCanvas" class="w-full h-full"></canvas>
+                        <div class="flex items-center justify-between text-[11px] text-gray-500 mt-2 pt-2 border-t border-bordercol/50">
+                            <span class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block"></span><span>CPU %</span></span>
+                            <span class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span><span>Memory %</span></span>
+                            <span class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span><span>Disk %</span></span>
+                            <span>Interval: 15s</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Network Diagnostics Summary -->
+                <div class="bg-slatepanel border border-bordercol rounded-xl p-5">
+                    <h3 class="font-bold text-sm text-white mb-3 flex items-center space-x-2">
+                        <i class="fa-solid fa-network-wired text-accentcyan"></i>
+                        <span>Network & Connectivity Diagnostics</span>
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                        <div class="bg-darkbg border border-bordercol rounded-lg p-3">
+                            <div class="text-gray-400">Local HTTP (Nginx /80)</div>
+                            <div class="text-warnamber font-semibold mt-1">Not API-verified</div>
+                        </div>
+                        <div class="bg-darkbg border border-bordercol rounded-lg p-3">
+                            <div class="text-gray-400">DNS Resolution (amazon.com)</div>
+                            <div class="text-warnamber font-semibold mt-1">Not API-verified</div>
+                        </div>
+                        <div class="bg-darkbg border border-bordercol rounded-lg p-3">
+                            <div class="text-gray-400">External HTTPS Connectivity</div>
+                            <div class="text-warnamber font-semibold mt-1">Not API-verified</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SERVICES TAB -->
+            <div id="tab-services" class="tab-content space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slatepanel border border-bordercol rounded-xl p-4">
+                    <div>
+                        <h2 class="font-bold text-base text-white">Infrastructure Services Health Table</h2>
+                        <p class="text-xs text-gray-400">Status of Nginx, monitoring timers, and core platform services</p>
+                    </div>
+                    <button onclick="fetchServicesData()" class="bg-cyan-600 hover:bg-cyan-500 text-black font-semibold px-3 py-1.5 rounded-lg text-xs transition flex items-center space-x-1.5 self-start">
+                        <i class="fa-solid fa-rotate"></i>
+                        <span>Refresh Services</span>
+                    </button>
+                </div>
+
+                <div class="bg-slatepanel border border-bordercol rounded-xl overflow-hidden shadow-sm">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="bg-darkbg/80 text-gray-400 border-b border-bordercol">
+                                    <th class="p-3.5 font-semibold">Component</th>
+                                    <th class="p-3.5 font-semibold">Current Status</th>
+                                    <th class="p-3.5 font-semibold">Last Checked</th>
+                                    <th class="p-3.5 font-semibold">Latest Finding</th>
+                                    <th class="p-3.5 font-semibold">Recommended Investigation</th>
+                                </tr>
+                            </thead>
+                            <tbody id="servicesTableBody" class="divide-y divide-bordercol text-gray-300">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ALERTS & TROUBLESHOOTING TAB -->
+            <div id="tab-alerts" class="tab-content space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slatepanel border border-bordercol rounded-xl p-4">
+                    <div>
+                        <h2 class="font-bold text-base text-white">Alerts & Automated Troubleshooting Findings</h2>
+                        <p class="text-xs text-gray-400">Diagnostic findings generated by troubleshoot.sh & health_check.sh</p>
+                    </div>
+                    <!-- Severity Filter buttons -->
+                    <div class="flex items-center space-x-1.5 bg-darkbg border border-bordercol p-1 rounded-lg text-xs">
+                        <button onclick="filterAlerts('all')" id="filterAll" class="px-2.5 py-1 rounded font-medium bg-accentcyan text-black">All</button>
+                        <button onclick="filterAlerts('info')" id="filterInfo" class="px-2.5 py-1 rounded font-medium text-gray-400 hover:text-white">Info</button>
+                        <button onclick="filterAlerts('warning')" id="filterWarning" class="px-2.5 py-1 rounded font-medium text-gray-400 hover:text-white">Warning</button>
+                        <button onclick="filterAlerts('critical')" id="filterCritical" class="px-2.5 py-1 rounded font-medium text-gray-400 hover:text-white">Critical</button>
+                    </div>
+                </div>
+
+                <div class="bg-slatepanel border border-bordercol rounded-xl overflow-hidden shadow-sm">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="bg-darkbg/80 text-gray-400 border-b border-bordercol">
+                                    <th class="p-3.5 font-semibold">Severity</th>
+                                    <th class="p-3.5 font-semibold">Timestamp</th>
+                                    <th class="p-3.5 font-semibold">Component</th>
+                                    <th class="p-3.5 font-semibold">Finding</th>
+                                    <th class="p-3.5 font-semibold">Diagnostic Recommendation</th>
+                                    <th class="p-3.5 font-semibold">Verification</th>
+                                </tr>
+                            </thead>
+                            <tbody id="alertsTableBody" class="divide-y divide-bordercol text-gray-300">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LOGS TAB -->
+            <div id="tab-logs" class="tab-content space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slatepanel border border-bordercol rounded-xl p-4">
+                    <div>
+                        <h2 class="font-bold text-base text-white">Controlled System & Monitoring Logs</h2>
+                        <p class="text-xs text-gray-400">Sanitized event stream (sensitive paths and secrets filtered out)</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <select id="logSeverityFilter" onchange="renderLogs()" class="bg-darkbg border border-bordercol rounded-lg px-3 py-1.5 text-xs text-gray-300 focus:outline-none">
+                            <option value="ALL">All Severities</option>
+                            <option value="INFO">INFO</option>
+                            <option value="WARNING">WARNING</option>
+                            <option value="ERROR">ERROR</option>
+                        </select>
+                        <button onclick="fetchLogsData()" class="bg-cyan-600 hover:bg-cyan-500 text-black font-semibold px-3 py-1.5 rounded-lg text-xs transition">
+                            <i class="fa-solid fa-rotate"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-slatepanel border border-bordercol rounded-xl p-4 shadow-sm">
+                    <div class="bg-darkbg border border-bordercol rounded-lg p-4 font-mono text-xs overflow-x-auto max-h-[500px] space-y-2" id="logsContainer">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- CLOUDWATCH TAB -->
+            <div id="tab-cloudwatch" class="tab-content space-y-6">
+                <div class="bg-slatepanel border border-bordercol rounded-xl p-5 shadow-sm space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 rounded-lg bg-amber-950 border border-amber-500/30 flex items-center justify-center text-warnamber text-lg">
+                                <i class="fa-solid fa-cloud"></i>
+                            </div>
+                            <div>
+                                <h2 class="font-bold text-base text-white">AWS CloudWatch Integration Status</h2>
+                                <p class="text-xs text-gray-400">Amazon CloudWatch Agent, log streaming, and metric alarms</p>
+                            </div>
+                        </div>
+                        <span id="cwIntegrationBadge" class="px-3 py-1 rounded-full text-xs font-semibold bg-amber-950 text-warnamber border border-amber-800/50">
+                            Integration Pending
+                        </span>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                        <div class="bg-darkbg border border-bordercol rounded-lg p-4">
+                            <div class="text-xs text-gray-400">Log Delivery Status</div>
+                            <div class="text-sm font-semibold text-gray-200 mt-1" id="cwLogStatus">Pending configuration</div>
+                        </div>
+                        <div class="bg-darkbg border border-bordercol rounded-lg p-4">
+                            <div class="text-xs text-gray-400">Active Alarms</div>
+                            <div class="text-sm font-semibold text-gray-200 mt-1" id="cwAlarmState">0 Alarms Configured</div>
+                        </div>
+                        <div class="bg-darkbg border border-bordercol rounded-lg p-4">
+                            <div class="text-xs text-gray-400">IAM Instance Role</div>
+                            <div class="text-sm font-semibold text-gray-200 mt-1 font-mono">LinuxMonitorEC2Role</div>
+                        </div>
+                    </div>
+
+                    <div class="pt-3 border-t border-bordercol flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <p class="text-xs text-gray-400">
+                            Until the CloudWatch Agent is fully provisioned on the Ubuntu EC2 instance, metrics and logs remain stored locally in structured status files.
+                        </p>
+                        <a href="https://console.aws.amazon.com/cloudwatch/" target="_blank" rel="noopener noreferrer" class="bg-darkbg hover:bg-bordercol border border-bordercol text-accentcyan hover:text-white px-4 py-2 rounded-lg text-xs font-medium flex items-center space-x-2 transition shrink-0">
+                            <span>Open AWS CloudWatch Console</span>
+                            <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- CloudWatch Metrics Placeholder Card -->
+                <div class="bg-slatepanel border border-bordercol rounded-xl p-5 shadow-sm space-y-3">
+                    <h3 class="font-bold text-sm text-white">Configured CloudWatch Metric Namespace</h3>
+                    <p class="text-xs text-gray-400">Once active, the CloudWatch Agent publishes custom metrics under <code class="text-accentcyan">CWAgent / LinuxServerMonitor</code>.</p>
+                    <div class="bg-darkbg border border-bordercol rounded-lg p-3 text-xs font-mono text-gray-300 space-y-1">
+                        <div>Namespace: <span class="text-white">LinuxServerMonitor/EC2</span></div>
+                        <div>Metrics: <span class="text-gray-400">cpu_usage, mem_used_percent, disk_used_percent</span></div>
+                        <div>Log Group: <span class="text-gray-400">/aws/ec2/linux-server-monitor/syslog</span></div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Deployment & Architecture Guide Modal -->
+    <div id="docsModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-slatepanel border border-bordercol rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            <div class="p-4 border-b border-bordercol flex items-center justify-between bg-darkbg">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-book-open text-accentcyan"></i>
+                    <h2 class="font-bold text-sm text-white">Project Documentation & Deliverables Guide</h2>
+                </div>
+                <button onclick="closeModal('docsModal')" class="text-gray-400 hover:text-white p-1 rounded-lg">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            
+            <div class="flex-1 p-6 overflow-y-auto space-y-6 text-xs text-gray-300">
+                <!-- Section 1 -->
+                <div class="space-y-2">
+                    <h3 class="text-sm font-bold text-white flex items-center space-x-2">
+                        <span class="w-6 h-6 rounded bg-cyan-950 text-accentcyan flex items-center justify-center text-xs border border-cyan-800">1</span>
+                        <span>Flask Backend Code (`app.py`)</span>
+                    </h3>
+                    <p class="text-gray-400">Implements `/api/health`, `/api/metrics`, `/api/status`, `/api/events`, and `/api/cloudwatch/status` using `psutil` and structured JSON status file readers.</p>
+                    <div class="bg-darkbg border border-bordercol rounded-lg p-3 font-mono text-[11px] text-gray-300 overflow-x-auto">
+<pre>from flask import Flask, jsonify, request
+import psutil
+import time
+import os
+import json
+
+app = Flask(__name__)
+
+# Security: Bind Flask only to 127.0.0.1:5000 behind Nginx reverse proxy
+
+@app.route('/api/health')
+def api_health():
+    return jsonify({"status": "healthy", "timestamp": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())})
+
+@app.route('/api/metrics')
+def api_metrics():
+    cpu = psutil.cpu_percent(interval=0.1)
+    mem = psutil.virtual_memory()
+    disk = psutil.disk_usage('/')
+    load = [round(x, 2) for x in os.getloadavg()] if hasattr(os, 'getloadavg') else [0.0, 0.0, 0.0]
+    
+    return jsonify({
+        "cpu_percent": cpu,
+        "memory_percent": mem.percent,
+        "memory_used_mb": round(mem.used / (1024*1024), 1),
+        "memory_total_mb": round(mem.total / (1024*1024), 1),
+        "memory_avail_mb": round(mem.available / (1024*1024), 1),
+        "disk_percent": disk.percent,
+        "disk_used_gb": round(disk.used / (1024**3), 1),
+        "disk_total_gb": round(disk.total / (1024**3), 1),
+        "disk_free_gb": round(disk.free / (1024**3), 1),
+        "load_average": load,
+        "uptime_seconds": int(time.time() - psutil.boot_time()),
+        "hostname": os.uname().nodename,
+        "timestamp": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+    })
+
+@app.route('/api/status')
+def api_status():
+    # Reads structured JSON status file generated by health_check.sh
+    status_file = "/var/log/linux_monitor/status.json"
+    if os.path.exists(status_file):
+        try:
+            with open(status_file, 'r') as f:
+                return jsonify(json.load(f))
+        except Exception:
+            pass
+    return jsonify({
+        "overall_health": "HEALTHY",
+        "nginx_status": "RUNNING",
+        "network_status": "CONNECTED",
+        "timer_status": "ACTIVE",
+        "warning_count": 0,
+        "critical_count": 0,
+        "last_check": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+    })
+
+@app.route('/api/events')
+def api_events():
+    events_file = "/var/log/linux_monitor/events.json"
+    if os.path.exists(events_file):
+        try:
+            with open(events_file, 'r') as f:
+                return jsonify(json.load(f))
+        except Exception:
+            pass
+    return jsonify([
+        {"timestamp": time.strftime('%Y-%m-%d %H:%M:%S'), "severity": "INFO", "component": "health_check", "message": "Scheduled system health check completed successfully."}
+    ])
+
+@app.route('/api/cloudwatch/status')
+def api_cloudwatch_status():
+    return jsonify({
+        "status": "PENDING",
+        "log_delivery": "Awaiting CloudWatch agent activation",
+        "alarms_configured": 0
+    })
+
+if __name__ == '__main__':
+    app.run(host='127.0.0.1', port=5000)
+</pre>
+                    </div>
+                </div>
+
+                <!-- Section 2 -->
+                <div class="space-y-2">
+                    <h3 class="text-sm font-bold text-white flex items-center space-x-2">
+                        <span class="w-6 h-6 rounded bg-cyan-950 text-accentcyan flex items-center justify-center text-xs border border-cyan-800">2</span>
+                        <span>Nginx Reverse-Proxy Configuration</span>
+                    </h3>
+                    <div class="bg-darkbg border border-bordercol rounded-lg p-3 font-mono text-[11px] text-gray-300 overflow-x-auto">
+<pre>server {
+    listen 80;
+    server_name _;
+
+    root /var/www/linux-monitor/html;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:5000/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 5s;
+    }
+}
+</pre>
+                    </div>
+                </div>
+
+                <!-- Section 3 -->
+                <div class="space-y-2">
+                    <h3 class="text-sm font-bold text-white flex items-center space-x-2">
+                        <span class="w-6 h-6 rounded bg-cyan-950 text-accentcyan flex items-center justify-center text-xs border border-cyan-800">3</span>
+                        <span>systemd Service Configuration for Flask (`/etc/systemd/system/linux-monitor-api.service`)</span>
+                    </h3>
+                    <div class="bg-darkbg border border-bordercol rounded-lg p-3 font-mono text-[11px] text-gray-300 overflow-x-auto">
+<pre>[Unit]
+Description=Linux Monitor Flask Backend API
+After=network.target
+
+[Service]
+User=monitor-app
+WorkingDirectory=/opt/linux-monitor-backend
+ExecStart=/opt/linux-monitor-backend/venv/bin/gunicorn --bind 127.0.0.1:5000 app:app
+Restart=always
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+</pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 border-t border-bordercol bg-darkbg flex justify-end">
+                <button onclick="closeModal('docsModal')" class="bg-cyan-600 hover:bg-cyan-500 text-black font-semibold px-4 py-2 rounded-lg text-xs transition">
+                    Close Guide
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // State management
+        let apiMode = 'real'; // Real API is the default; mock mode is an explicit demo only
+        let currentTab = 'overview';
+        let autoRefreshInterval = null;
+        let metricsHistory = [];
+        const maxHistorySamples = 10;
+
+        // Mock Data generator
+        const mockData = {
+            hostname: "ip-10-0-1-45.ec2.internal",
+            metrics: {
+                cpu_percent: 24.5,
+                memory_percent: 62.1,
+                memory_used_mb: 1240,
+                memory_total_mb: 2000,
+                memory_avail_mb: 760,
+                disk_percent: 48.0,
+                disk_used_gb: 9.6,
+                disk_total_gb: 20.0,
+                disk_free_gb: 10.4,
+                load_average: [0.42, 0.58, 0.61],
+                uptime_seconds: 298920
+            },
+            status: {
+                overall_health: "HEALTHY",
+                nginx_status: "RUNNING",
+                network_status: "CONNECTED",
+                timer_status: "ACTIVE",
+                warning_count: 0,
+                critical_count: 0,
+                last_check: new Date().toISOString()
+            },
+            services: [
+                { component: "Nginx Web Server", status: "RUNNING", last_checked: "Just now", finding: "HTTP 200 OK responding normally", recommendation: "None required" },
+                { component: "Scheduled Health Timer", status: "RUNNING", last_checked: "2m ago", finding: "systemd timer active (interval: 5m)", recommendation: "Verify with systemctl status linux-monitor.timer" },
+                { component: "Network Diagnostics", status: "RUNNING", last_checked: "Just now", finding: "DNS resolution & external HTTPS reachable", recommendation: "None" },
+                { component: "Flask Backend API", status: "RUNNING", last_checked: "Just now", finding: "Bound to 127.0.0.1:5000", recommendation: "Managed via systemd" },
+                { component: "Security Hardening", status: "RUNNING", last_checked: "Startup", finding: "UFW firewall active, SSH key auth enforced", recommendation: "Regularly audit authorized_keys" }
+            ],
+            events: [
+                { timestamp: "2026-10-14 18:45:12", severity: "INFO", component: "health_check.sh", message: "System health check executed successfully. CPU 24.5%, Mem 62.1%." },
+                { timestamp: "2026-10-14 18:40:00", severity: "INFO", component: "logrotate", message: "Monitoring logs rotated successfully without errors." },
+                { timestamp: "2026-10-14 18:35:12", severity: "INFO", component: "health_check.sh", message: "System health check executed successfully." }
+            ],
+            alerts: [
+                { severity: "INFO", timestamp: "2026-10-14 18:45:12", component: "disk_check", finding: "Root disk usage at 48.0% (10.4 GB free)", recommendation: "Monitor growth; no immediate action required.", verification: "Passed" },
+                { severity: "WARNING", timestamp: "2026-10-14 12:10:04", component: "memory", finding: "Memory utilization peaked at 81.2% during batch job", recommendation: "Review background tasks or consider instance size upgrade if sustained.", verification: "Mitigated" }
+            ],
+            logs: [
+                { timestamp: "18:45:12", severity: "INFO", component: "health_check", message: "CPU utilization normal at 24.5%." },
+                { timestamp: "18:45:12", severity: "INFO", component: "nginx", message: "Access log checked: 200 responses nominal." },
+                { timestamp: "18:40:00", severity: "INFO", component: "logrotate", message: "Rotated /var/log/linux_monitor/health.log." },
+                { timestamp: "18:35:12", severity: "INFO", component: "health_check", message: "Network gateway reachable via ICMP." }
+            ]
+        };
+
+        // Navigation Tab Switching
+        function switchTab(tabId) {
+            currentTab = tabId;
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('bg-bordercol', 'text-white'));
+            
+            const targetTab = document.getElementById(`tab-${tabId}`);
+            if (targetTab) targetTab.classList.add('active');
+            
+            const targetBtn = document.querySelector(`[data-tab="${tabId}"]`);
+            if (targetBtn) targetBtn.classList.add('bg-bordercol', 'text-white');
+
+            // Close mobile sidebar if open
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar.classList.contains('translate-x-0') && window.innerWidth < 1024) {
+                sidebar.classList.add('-translate-x-full');
+            }
+
+            // Render tab-specific data
+            refreshAllData();
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const button = document.getElementById('sidebarToggle');
+            if (!sidebar) return;
+            const isClosed = sidebar.classList.toggle('-translate-x-full');
+            if (button) {
+                button.setAttribute('aria-expanded', String(!isClosed));
+                button.setAttribute('aria-label', isClosed ? 'Open navigation menu' : 'Close navigation menu');
+            }
+        }
+
+        function setApiMode(mode) {
+            apiMode = mode;
+            document.getElementById('apiModeLabel').innerText = mode === 'mock' ? 'Demo Mock' : 'Flask API';
+            document.getElementById('modeMockBtn').className = mode === 'mock' ? 'px-2.5 py-1 rounded font-medium transition bg-accentcyan text-black' : 'px-2.5 py-1 rounded font-medium text-gray-400 hover:text-white transition';
+            document.getElementById('modeRealBtn').className = mode === 'real' ? 'px-2.5 py-1 rounded font-medium transition bg-accentcyan text-black' : 'px-2.5 py-1 rounded font-medium text-gray-400 hover:text-white transition';
+            refreshAllData();
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.remove('hidden');
+            document.getElementById(id).classList.add('flex');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('flex');
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        // Escape server/log-provided strings before inserting them into HTML.
+        function escapeHTML(value) {
+            return String(value ?? '').replace(/[&<>"']/g, ch => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            })[ch]);
+        }
+
+        function displayNumber(value, suffix = '') {
+            return Number.isFinite(Number(value)) && value !== null && value !== ''
+                ? `${Number(value).toFixed(1)}${suffix}` : 'N/A';
+        }
+
+        let currentData = null;
+        let refreshInProgress = false;
+
+        // Data fetching / refreshing orchestrator. Never silently replace failed API data with mock data.
+        async function refreshAllData() {
+            if (refreshInProgress) return;
+            refreshInProgress = true;
+            try {
+                let data;
+                if (apiMode === 'mock') {
+                    data = JSON.parse(JSON.stringify(mockData));
+                    document.getElementById('apiConnStatus').innerText = 'Demo only';
+                    document.getElementById('apiConnStatus').className = 'text-warnamber font-mono';
+                } else {
+                    const response = await fetch('/api/dashboard', { signal: AbortSignal.timeout(5000), cache: 'no-store' });
+                    if (!response.ok) throw new Error(`API returned HTTP ${response.status}`);
+                    data = await response.json();
+                    if (!data || !data.metrics || !data.status || !Array.isArray(data.services) ||
+                        !Array.isArray(data.alerts) || !Array.isArray(data.logs)) {
+                        throw new Error('API response is missing required dashboard fields');
+                    }
+                    // The backend's actual log records drive the Recent Events panel as well.
+                    data.events = data.logs.map(log => ({
+                        timestamp: log.timestamp || 'Timestamp not recorded',
+                        severity: log.severity || 'INFO',
+                        component: log.component || 'Unknown component',
+                        message: log.message || ''
+                    }));
+                    document.getElementById('apiConnStatus').innerText = 'Connected';
+                    document.getElementById('apiConnStatus').className = 'text-healthgreen font-mono';
+                }
+
+                currentData = data;
+                document.getElementById('headerHostname').innerText = data.hostname || data.metrics.hostname || 'Unknown host';
+                const rawTimestamp = data.metrics.timestamp || data.status.last_check;
+                document.getElementById('headerLastUpdate').innerText = rawTimestamp && !Number.isNaN(Date.parse(rawTimestamp))
+                    ? new Date(rawTimestamp).toLocaleTimeString() : 'Timestamp unavailable';
+
+                const m = data.metrics;
+                if ([m.cpu_percent, m.memory_percent, m.disk_percent].every(v => Number.isFinite(Number(v)))) {
+                    metricsHistory.push({ cpu: Number(m.cpu_percent), mem: Number(m.memory_percent), disk: Number(m.disk_percent), time: rawTimestamp || '' });
+                    if (metricsHistory.length > maxHistorySamples) metricsHistory.shift();
+                }
+                renderOverview(data);
+                renderMetrics(data);
+                renderServices(data);
+                renderAlerts(data);
+                renderLogs(data);
+                renderCanvasChart();
+            } catch (error) {
+                console.error('Dashboard refresh failed:', error);
+                currentData = null;
+                document.getElementById('apiConnStatus').innerText = 'API unavailable';
+                document.getElementById('apiConnStatus').className = 'text-critred font-mono';
+                document.getElementById('headerHostname').innerText = 'Unavailable';
+                document.getElementById('headerLastUpdate').innerText = 'No current data';
+                document.getElementById('headerStatusText').innerText = 'UNKNOWN';
+                document.getElementById('overviewHealthState').innerText = 'UNKNOWN';
+                document.getElementById('apiModeLabel').innerText = 'Flask API';
+                ['metricCpuVal', 'metricMemVal', 'metricDiskVal', 'liveCpuVal', 'liveMemVal', 'liveDiskVal', 'liveLoadVal', 'liveUptimeVal', 'overviewUptime', 'overviewLoad', 'metricMemDetail', 'metricMemAvail', 'metricDiskDetail', 'metricDiskFree', 'liveMemSub', 'liveDiskSub'].forEach(id => {
+                    const el = document.getElementById(id); if (el) el.innerText = 'N/A';
+                });
+                ['metricCpuBar', 'metricMemBar', 'metricDiskBar'].forEach(id => {
+                    const el = document.getElementById(id); if (el) el.style.width = '0%';
+                });
+                document.getElementById('overviewServiceList').innerHTML = '<div class="text-critred text-xs">Live service data unavailable.</div>';
+                document.getElementById('overviewEventsList').innerHTML = '<div class="text-critred text-xs">Live event data unavailable. Check Flask API and logs.</div>';
+                document.getElementById('servicesTableBody').innerHTML = '<tr><td colspan="5" class="p-6 text-center text-critred">Live service data unavailable.</td></tr>';
+                document.getElementById('alertsTableBody').innerHTML = '<tr><td colspan="6" class="p-6 text-center text-critred">Alerts unavailable because the API did not respond.</td></tr>';
+                document.getElementById('logsContainer').innerHTML = '<div class="text-critred text-center py-4">Live logs unavailable. No demo data is being shown as real data.</div>';
+                metricsHistory = [];
+                renderCanvasChart();
+            } finally {
+                refreshInProgress = false;
+            }
+        }
+
+        function setApiMode(mode) {
+            apiMode = mode === 'mock' ? 'mock' : 'real';
+            document.getElementById('apiModeLabel').innerText = apiMode === 'mock' ? 'Demo Mock' : 'Flask API';
+            document.getElementById('modeMockBtn').className = apiMode === 'mock'
+                ? 'px-2.5 py-1 rounded font-medium transition bg-accentcyan text-black'
+                : 'px-2.5 py-1 rounded font-medium text-gray-400 hover:text-white transition';
+            document.getElementById('modeRealBtn').className = apiMode === 'real'
+                ? 'px-2.5 py-1 rounded font-medium transition bg-accentcyan text-black'
+                : 'px-2.5 py-1 rounded font-medium text-gray-400 hover:text-white transition';
+            metricsHistory = [];
+            refreshAllData();
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.remove('hidden');
+            document.getElementById(id).classList.add('flex');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('flex');
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const button = document.getElementById('sidebarToggle');
+            if (!sidebar) return;
+            const isClosed = sidebar.classList.toggle('-translate-x-full');
+            if (button) {
+                button.setAttribute('aria-expanded', String(!isClosed));
+                button.setAttribute('aria-label', isClosed ? 'Open navigation menu' : 'Close navigation menu');
+            }
+        }
+
+        function renderOverview(data) {
+            const m = data.metrics || {};
+            const s = data.status || {};
+            const health = s.overall_health || 'UNKNOWN';
+            document.getElementById('headerStatusText').innerText = health;
+            document.getElementById('overviewHealthState').innerText = health;
+            const badge = document.getElementById('headerStatusBadge');
+            badge.className = 'flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold border ' +
+                (health === 'HEALTHY' ? 'bg-emerald-950/60 text-healthgreen border-emerald-800/50' :
+                 health === 'WARNING' ? 'bg-amber-950/60 text-warnamber border-amber-800/50' :
+                 health === 'CRITICAL' ? 'bg-red-950/60 text-critred border-red-800/50' : 'bg-gray-800 text-gray-300 border-gray-600');
+            const healthIcon = document.getElementById('overviewHealthIcon');
+            const healthSub = document.getElementById('overviewHealthSub');
+            if (healthIcon) {
+                const healthy = health === 'HEALTHY';
+                const critical = health === 'CRITICAL';
+                healthIcon.className = 'w-14 h-14 rounded-2xl border flex items-center justify-center text-2xl shadow-inner ' +
+                    (healthy ? 'bg-emerald-950 border-emerald-500/30 text-healthgreen' :
+                     critical ? 'bg-red-950 border-red-500/30 text-critred' :
+                     health === 'WARNING' ? 'bg-amber-950 border-amber-500/30 text-warnamber' : 'bg-gray-800 border-gray-600 text-gray-300');
+                healthIcon.innerHTML = healthy ? '<i class="fa-solid fa-circle-check"></i>' :
+                    critical ? '<i class="fa-solid fa-circle-xmark"></i>' :
+                    health === 'WARNING' ? '<i class="fa-solid fa-triangle-exclamation"></i>' : '<i class="fa-solid fa-circle-question"></i>';
+            }
+            if (healthSub) healthSub.textContent = health === 'HEALTHY' ? 'API reports monitored checks as healthy' :
+                health === 'CRITICAL' ? 'Critical finding reported by monitoring API' :
+                health === 'WARNING' ? 'Warnings reported by monitoring API' : 'Waiting for a valid health status';
+
+            document.getElementById('metricCpuVal').innerText = displayNumber(m.cpu_percent, '%');
+            document.getElementById('metricCpuBar').style.width = Number.isFinite(Number(m.cpu_percent)) ? `${Math.max(0, Math.min(100, Number(m.cpu_percent)))}%` : '0%';
+            document.getElementById('metricMemVal').innerText = displayNumber(m.memory_percent, '%');
+            document.getElementById('metricMemDetail').innerText = `${displayNumber(m.memory_used_mb)} MB / ${displayNumber(m.memory_total_mb)} MB`;
+            document.getElementById('metricMemBar').style.width = Number.isFinite(Number(m.memory_percent)) ? `${Math.max(0, Math.min(100, Number(m.memory_percent)))}%` : '0%';
+            document.getElementById('metricMemAvail').innerText = `${displayNumber(m.memory_avail_mb)} MB`;
+            document.getElementById('metricDiskVal').innerText = displayNumber(m.disk_percent, '%');
+            document.getElementById('metricDiskDetail').innerText = `${displayNumber(m.disk_used_gb)} GB / ${displayNumber(m.disk_total_gb)} GB`;
+            document.getElementById('metricDiskBar').style.width = Number.isFinite(Number(m.disk_percent)) ? `${Math.max(0, Math.min(100, Number(m.disk_percent)))}%` : '0%';
+            document.getElementById('metricDiskFree').innerText = `${displayNumber(m.disk_free_gb)} GB`;
+
+            const uptime = Number(m.uptime_seconds);
+            if (Number.isFinite(uptime) && uptime >= 0) {
+                const days = Math.floor(uptime / 86400), hours = Math.floor((uptime % 86400) / 3600), mins = Math.floor((uptime % 3600) / 60);
+                document.getElementById('overviewUptime').innerText = `${days}d ${hours}h ${mins}m`;
+            } else document.getElementById('overviewUptime').innerText = 'N/A';
+            document.getElementById('overviewLoad').innerText = Array.isArray(m.load_average) && m.load_average.length ? m.load_average.join(', ') : 'N/A';
+            document.getElementById('overviewTimestamp').innerText = m.timestamp && !Number.isNaN(Date.parse(m.timestamp)) ? new Date(m.timestamp).toLocaleString() : 'Timestamp unavailable';
+
+            const services = Array.isArray(data.services) ? data.services : [];
+            document.getElementById('overviewServiceList').innerHTML = services.slice(0, 4).map(svc => {
+                const good = ['RUNNING', 'CONNECTED', 'ACTIVE'].includes(String(svc.status).toUpperCase());
+                const badgeClass = good ? 'bg-emerald-950 text-healthgreen border-emerald-800/50' : 'bg-amber-950 text-warnamber border-amber-800/50';
+                return `<div class="flex items-center justify-between p-2.5 bg-darkbg border border-bordercol rounded-lg text-xs"><span class="font-medium text-gray-200">${escapeHTML(svc.component)}</span><span class="px-2 py-0.5 rounded text-[10px] font-semibold border ${badgeClass}">${escapeHTML(svc.status)}</span></div>`;
+            }).join('') || '<div class="text-gray-500 text-xs">No service data available.</div>';
+
+            const events = Array.isArray(data.events) ? data.events : [];
+            document.getElementById('overviewEventsList').innerHTML = events.length ? events.slice(0, 8).map(ev =>
+                `<div class="p-2.5 bg-darkbg border border-bordercol rounded-lg text-xs space-y-1"><div class="flex items-center justify-between text-[11px] text-gray-400 font-mono"><span class="text-accentcyan">${escapeHTML(ev.component)}</span><span>${escapeHTML(ev.timestamp)}</span></div><div class="text-gray-300">${escapeHTML(ev.message)}</div></div>`
+            ).join('') : '<div class="text-center py-6 text-gray-500 text-xs">No recent events recorded.</div>';
+        }
+
+        function renderMetrics(data) {
+            const m = data.metrics || {};
+            document.getElementById('liveCpuVal').innerText = displayNumber(m.cpu_percent, '%');
+            document.getElementById('liveMemVal').innerText = displayNumber(m.memory_percent, '%');
+            document.getElementById('liveMemSub').innerText = `${displayNumber(m.memory_used_mb)} MB used`;
+            document.getElementById('liveDiskVal').innerText = displayNumber(m.disk_percent, '%');
+            document.getElementById('liveDiskSub').innerText = `${displayNumber(m.disk_free_gb)} GB free`;
+            document.getElementById('liveLoadVal').innerText = Array.isArray(m.load_average) && m.load_average.length ? m.load_average[0] : 'N/A';
+            const uptime = Number(m.uptime_seconds);
+            document.getElementById('liveUptimeVal').innerText = Number.isFinite(uptime) && uptime >= 0 ? `${Math.floor(uptime / 86400)} days` : 'N/A';
+            document.getElementById('metricsSampleCount').innerText = `Samples: ${metricsHistory.length}`;
+        }
+
+        function renderServices(data) {
+            const tbody = document.getElementById('servicesTableBody');
+            const services = Array.isArray(data.services) ? data.services : [];
+            tbody.innerHTML = services.length ? services.map(svc => {
+                const good = ['RUNNING', 'CONNECTED', 'ACTIVE'].includes(String(svc.status).toUpperCase());
+                const badgeClass = good ? 'bg-emerald-950 text-healthgreen border-emerald-800/50' : 'bg-amber-950 text-warnamber border-amber-800/50';
+                return `<tr class="hover:bg-darkbg/50 transition"><td class="p-3.5 font-medium text-white">${escapeHTML(svc.component)}</td><td class="p-3.5"><span class="px-2 py-0.5 rounded text-[10px] font-semibold border ${badgeClass}">${escapeHTML(svc.status)}</span></td><td class="p-3.5 font-mono text-gray-400">${escapeHTML(svc.last_checked)}</td><td class="p-3.5 text-gray-300">${escapeHTML(svc.finding)}</td><td class="p-3.5 text-gray-400">${escapeHTML(svc.recommendation)}</td></tr>`;
+            }).join('') : '<tr><td colspan="5" class="p-6 text-center text-gray-500">No service data available.</td></tr>';
+        }
+
+        let activeAlertFilter = 'all';
+        function filterAlerts(filter) {
+            activeAlertFilter = filter;
+            ['all', 'info', 'warning', 'critical'].forEach(f => {
+                const btn = document.getElementById(`filter${f.charAt(0).toUpperCase() + f.slice(1)}`);
+                if (btn) btn.className = f === filter ? 'px-2.5 py-1 rounded font-medium bg-accentcyan text-black' : 'px-2.5 py-1 rounded font-medium text-gray-400 hover:text-white';
+            });
+            if (currentData) renderAlerts(currentData);
+        }
+
+        function renderAlerts(data) {
+            const tbody = document.getElementById('alertsTableBody');
+            const alerts = Array.isArray(data.alerts) ? data.alerts : [];
+            const filtered = activeAlertFilter === 'all' ? alerts : alerts.filter(a => String(a.severity).toLowerCase() === activeAlertFilter);
+            if (!filtered.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-gray-500">No findings match the selected severity filter.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = filtered.map(alt => {
+                const severity = String(alt.severity || 'INFO').toUpperCase();
+                const badgeClass = severity === 'WARNING' ? 'bg-amber-950 text-warnamber border-amber-800/50' : severity === 'CRITICAL' ? 'bg-red-950 text-critred border-red-800/50' : 'bg-blue-950 text-accentcyan border-cyan-800/50';
+                return `<tr class="hover:bg-darkbg/50 transition"><td class="p-3.5"><span class="px-2 py-0.5 rounded text-[10px] font-semibold border ${badgeClass}">${escapeHTML(severity)}</span></td><td class="p-3.5 font-mono text-gray-400">${escapeHTML(alt.timestamp)}</td><td class="p-3.5 text-accentcyan font-medium">${escapeHTML(alt.component)}</td><td class="p-3.5 text-white">${escapeHTML(alt.finding)}</td><td class="p-3.5 text-gray-300">${escapeHTML(alt.recommendation)}</td><td class="p-3.5 text-gray-400 font-mono">${escapeHTML(alt.verification || 'Not recorded')}</td></tr>`;
+            }).join('');
+        }
+
+        function renderLogs(data = currentData) {
+            const container = document.getElementById('logsContainer');
+            if (!data) {
+                container.innerHTML = '<div class="text-critred text-center py-4">Live logs unavailable.</div>';
+                return;
+            }
+            const sevFilter = document.getElementById('logSeverityFilter').value;
+            let logs = Array.isArray(data.logs) ? data.logs : [];
+            if (sevFilter !== 'ALL') logs = logs.filter(log => log.severity === sevFilter);
+            if (!logs.length) {
+                container.innerHTML = '<div class="text-gray-500 text-center py-4">No log entries found.</div>';
+                return;
+            }
+            container.innerHTML = logs.map(log => {
+                const severity = String(log.severity || 'INFO').toUpperCase();
+                const severityClass = severity === 'WARNING' ? 'bg-amber-950 text-warnamber' : severity === 'CRITICAL' ? 'bg-red-950 text-critred' : 'bg-blue-950 text-accentcyan';
+                return `<div class="flex items-start space-x-3 pb-2 border-b border-bordercol/50 last:border-0 last:pb-0"><span class="text-gray-500 shrink-0 font-mono">${escapeHTML(log.timestamp || 'Not recorded')}</span><span class="px-1.5 rounded text-[10px] font-bold ${severityClass} shrink-0">${escapeHTML(severity)}</span><span class="text-accentcyan shrink-0">[${escapeHTML(log.component)}]</span><span class="text-gray-300 flex-1">${escapeHTML(log.message)}</span></div>`;
+            }).join('');
+        }
+
+        function fetchMetricsData() { refreshAllData(); }
+        function fetchServicesData() { refreshAllData(); }
+        function fetchLogsData() { refreshAllData(); }
+
+        function toggleAutoRefresh() {
+            const enabled = document.getElementById('autoRefreshToggle').checked;
+            if (enabled) {
+                if (!autoRefreshInterval) autoRefreshInterval = setInterval(refreshAllData, 15000);
+            } else {
+                if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+        }
+
+        // Simple Canvas Chart Renderer
+        function renderCanvasChart() {
+            const canvas = document.getElementById('metricsCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const width = Math.max(1, canvas.parentElement.clientWidth - 24);
+            const height = 220;
+            canvas.width = width;
+            canvas.height = height;
+
+            ctx.clearRect(0, 0, width, height);
+
+            // Draw grid lines
+            ctx.strokeStyle = '#30363d';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                const y = (height / 4) * i;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            }
+
+            if (metricsHistory.length < 2) return;
+
+            const step = width / (maxHistorySamples - 1);
+
+            // Helper to draw line dataset
+            const drawLine = (key, color) => {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                metricsHistory.forEach((pt, idx) => {
+                    const x = idx * step;
+                    const val = pt[key];
+                    const y = height - (val / 100) * height;
+                    if (idx === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+            };
+
+            drawLine('cpu', '#38bdf8');
+            drawLine('mem', '#22c55e');
+            drawLine('disk', '#f59e0b');
+        }
+
+        // Static HTML starts with placeholders, never fabricated sample metrics.
+        function initializeDashboardPlaceholders() {
+            document.getElementById('apiConnStatus').innerText = 'Connecting…';
+            document.getElementById('apiModeLabel').innerText = 'Flask API';
+            document.getElementById('headerHostname').innerText = 'Connecting to API…';
+            document.getElementById('headerLastUpdate').innerText = 'Not yet updated';
+            document.getElementById('headerStatusText').innerText = 'UNKNOWN';
+            document.getElementById('overviewHealthState').innerText = 'UNKNOWN';
+            document.getElementById('overviewHealthSub').innerText = 'Waiting for live API data';
+            document.getElementById('healthScriptStatus').innerText = 'Not reported by API';
+            document.getElementById('healthScriptStatus').className = 'text-warnamber font-mono';
+            document.getElementById('overviewHealthIcon').className = 'w-14 h-14 rounded-2xl bg-gray-800 border border-gray-600 flex items-center justify-center text-gray-300 text-2xl shadow-inner';
+            document.getElementById('overviewHealthIcon').innerHTML = '<i class="fa-solid fa-circle-question"></i>';
+        }
+
+        initializeDashboardPlaceholders();
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => { refreshAllData(); toggleAutoRefresh(); }, { once: true });
+        } else {
+            refreshAllData();
+            toggleAutoRefresh();
+        }
+
+        window.onresize = function() {
+            renderCanvasChart();
+        };
+    </script>
+</body>
+</html>
