@@ -1,62 +1,92 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-exec > >(tee -a ~/linux-server-monitoring/logs/health_check.log)
+set -uo pipefail
 
-TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+# Resolve the project root from this script's location.
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+LOG_DIR="${LOG_DIR:-$PROJECT_DIR/logs}"
+LOG_FILE="$LOG_DIR/health_check.log"
 
-DISK_THRESHOLD=80
-MEMORY_THRESHOLD=80
-CPU_THRESHOLD=80
+mkdir -p "$LOG_DIR" || {
+    echo "ERROR: Cannot create log directory: $LOG_DIR" >&2
+    exit 1
+}
 
-HOSTNAME=$(hostname)
-UPTIME=$(uptime -p)
-LOAD=$(awk '{print $1 ", " $2 ", " $3}' /proc/loadavg)
+# Keep console output and append the same output to the log.
+exec > >(tee -a "$LOG_FILE") 2>&1
 
-DISK_USAGE=$(df --output=pcent / | tail -n 1 | tr -d ' %')
-MEMORY_USAGE=$(free | awk '/^Mem:/ {printf "%.0f", $3/$2*100}')
+TIMESTAMP="$(date '+%Y-%m-%d %H:%M:%S')"
+HOSTNAME="$(hostname)"
+UPTIME="$(uptime -p 2>/dev/null || uptime)"
+LOAD="$(awk '{print $1 ", " $2 ", " $3}' /proc/loadavg)"
 
-read -r _ user nice system idle iowait irq softirq steal _ < /proc/stat
-TOTAL1=$((user+nice+system+idle+iowait+irq+softirq+steal))
-IDLE1=$((idle+iowait))
+CPU_THRESHOLD="${CPU_THRESHOLD:-80}"
+MEMORY_THRESHOLD="${MEMORY_THRESHOLD:-80}"
+DISK_THRESHOLD="${DISK_THRESHOLD:-80}"
+
+# Read a percentage safely; return UNKNOWN if measurement fails.
+DISK_USAGE="$(df -P / | awk 'NR==2 {gsub(/%/, "", $5); print $5}')"
+MEMORY_USAGE="$(awk '
+    /^MemTotal:/ { total=$2 }
+    /^MemAvailable:/ { available=$2 }
+    END {
+        if (total > 0) printf "%.0f", (total-available)*100/total;
+        else print "UNKNOWN"
+    }
+' /proc/meminfo)"
+
+CPU_USAGE="UNKNOWN"
+read -r _ USER NICE SYSTEM IDLE IOWAIT IRQ SOFTIRQ STEAL _ < /proc/stat
+TOTAL1=$((USER + NICE + SYSTEM + IDLE + IOWAIT + IRQ + SOFTIRQ + STEAL))
+IDLE1=$((IDLE + IOWAIT))
 
 sleep 1
 
-read -r _ user nice system idle iowait irq softirq steal _ < /proc/stat
-TOTAL2=$((user+nice+system+idle+iowait+irq+softirq+steal))
-IDLE2=$((idle+iowait))
+read -r _ USER NICE SYSTEM IDLE IOWAIT IRQ SOFTIRQ STEAL _ < /proc/stat
+TOTAL2=$((USER + NICE + SYSTEM + IDLE + IOWAIT + IRQ + SOFTIRQ + STEAL))
+IDLE2=$((IDLE + IOWAIT))
 
-TOTAL_DIFF=$((TOTAL2-TOTAL1))
-IDLE_DIFF=$((IDLE2-IDLE1))
+TOTAL_DIFF=$((TOTAL2 - TOTAL1))
+IDLE_DIFF=$((IDLE2 - IDLE1))
 
-CPU_USAGE=$((100 * (TOTAL_DIFF-IDLE_DIFF) / TOTAL_DIFF))
-
-if (( DISK_USAGE >= DISK_THRESHOLD )); then
-    DISK_STATUS="CRITICAL"
-else
-    DISK_STATUS="OK"
+if (( TOTAL_DIFF > 0 )); then
+    CPU_USAGE=$((100 * (TOTAL_DIFF - IDLE_DIFF) / TOTAL_DIFF))
 fi
 
-if (( MEMORY_USAGE >= MEMORY_THRESHOLD )); then
-    MEMORY_STATUS="CRITICAL"
-else
-    MEMORY_STATUS="OK"
-fi
+check_threshold() {
+    local value="$1"
+    local threshold="$2"
 
-if (( CPU_USAGE >= CPU_THRESHOLD )); then
-    CPU_STATUS="CRITICAL"
-else
-    CPU_STATUS="OK"
-fi
+    if [[ ! "$value" =~ ^[0-9]+$ ]]; then
+        echo "UNKNOWN"
+    elif (( value >= threshold )); then
+        echo "WARNING"
+    else
+        echo "OK"
+    fi
+}
 
-GATEWAY=$(ip route | awk '/^default/ {print $3; exit}')
+DISK_STATUS="$(check_threshold "$DISK_USAGE" "$DISK_THRESHOLD")"
+MEMORY_STATUS="$(check_threshold "$MEMORY_USAGE" "$MEMORY_THRESHOLD")"
+CPU_STATUS="$(check_threshold "$CPU_USAGE" "$CPU_THRESHOLD")"
 
-if ip link show ens33 | grep -q "state UP" &&
-   ping -c 3 -W 1 "$GATEWAY" >/dev/null 2>&1 &&
-   ping -c 3 -W 1 8.8.8.8 >/dev/null 2>&1
-then
+# Detect the default-route interface dynamically; do not assume ens33.
+INTERFACE="$(ip -o route show default 2>/dev/null | awk 'NR==1 {print $5}')"
+GATEWAY="$(ip -o route show default 2>/dev/null | awk 'NR==1 {print $3}')"
+
+NETWORK_STATUS="CRITICAL"
+
+if [[ -n "$INTERFACE" && -n "$GATEWAY" ]] &&
+   ip link show "$INTERFACE" >/dev/null 2>&1 &&
+   ping -c 1 -W 2 "$GATEWAY" >/dev/null 2>&1; then
     NETWORK_STATUS="OK"
-else
-    NETWORK_STATUS="CRITICAL"
+fi
+
+# External ICMP may be blocked, so DNS is checked separately.
+DNS_STATUS="CRITICAL"
+if getent hosts example.com >/dev/null 2>&1; then
+    DNS_STATUS="OK"
 fi
 
 if systemctl is-active --quiet nginx; then
@@ -67,17 +97,27 @@ fi
 
 OVERALL_STATUS="HEALTHY"
 
-if [[ "$DISK_STATUS" == "CRITICAL" ||
-      "$MEMORY_STATUS" == "CRITICAL" ||
-      "$CPU_STATUS" == "CRITICAL" ||
-      "$NETWORK_STATUS" == "CRITICAL" ||
-      "$NGINX_STATUS" == "DOWN" ]]
-then
+if [[ "$DISK_STATUS" == "WARNING" ||
+      "$MEMORY_STATUS" == "WARNING" ||
+      "$CPU_STATUS" == "WARNING" ||
+      "$DISK_STATUS" == "UNKNOWN" ||
+      "$MEMORY_STATUS" == "UNKNOWN" ||
+      "$CPU_STATUS" == "UNKNOWN" ||
+      "$NETWORK_STATUS" != "OK" ||
+      "$DNS_STATUS" != "OK" ||
+      "$NGINX_STATUS" != "RUNNING" ]]; then
+    OVERALL_STATUS="WARNING"
+fi
+
+if [[ "$DISK_STATUS" == "UNKNOWN" ||
+      "$MEMORY_STATUS" == "UNKNOWN" ||
+      "$CPU_STATUS" == "UNKNOWN" ]]; then
     OVERALL_STATUS="CRITICAL"
 fi
-if [[ "$OVERALL_STATUS" == "CRITICAL" ]]; then
-    logger -p user.crit -t linux-server-monitoring \
-        "CRITICAL: Server health check detected a problem on $(hostname)"
+
+if [[ "$OVERALL_STATUS" != "HEALTHY" ]]; then
+    logger -p user.warning -t linux-server-monitoring \
+        "Health check status=$OVERALL_STATUS host=$HOSTNAME" 2>/dev/null || true
 fi
 
 echo "========================================"
@@ -87,12 +127,16 @@ echo "Timestamp      : $TIMESTAMP"
 echo "Hostname       : $HOSTNAME"
 echo "Uptime         : $UPTIME"
 echo "Load Average   : $LOAD"
-echo "CPU Usage      : $CPU_USAGE% ($CPU_STATUS)"
-echo "Memory Usage   : $MEMORY_USAGE% ($MEMORY_STATUS)"
-echo "Disk Usage     : $DISK_USAGE% ($DISK_STATUS)"
+echo "CPU Usage      : ${CPU_USAGE}% ($CPU_STATUS)"
+echo "Memory Usage   : ${MEMORY_USAGE}% ($MEMORY_STATUS)"
+echo "Disk Usage     : ${DISK_USAGE}% ($DISK_STATUS)"
+echo "Network IF     : ${INTERFACE:-UNKNOWN}"
+echo "Gateway        : ${GATEWAY:-UNKNOWN}"
 echo "Network        : $NETWORK_STATUS"
+echo "DNS            : $DNS_STATUS"
 echo "Nginx          : $NGINX_STATUS"
 echo "Overall Status : $OVERALL_STATUS"
+echo "Log File       : $LOG_FILE"
 echo "========================================"
 
 if [[ "$OVERALL_STATUS" == "HEALTHY" ]]; then
@@ -100,5 +144,3 @@ if [[ "$OVERALL_STATUS" == "HEALTHY" ]]; then
 else
     exit 1
 fi
-
-

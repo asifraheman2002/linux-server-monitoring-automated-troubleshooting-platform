@@ -90,7 +90,7 @@
                 <span class="font-bold text-sm text-white">Navigation</span>
                 <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            
+
             <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
                 <button onclick="switchTab('overview')" class="nav-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:bg-bordercol/50 hover:text-white transition active" data-tab="overview">
                     <i class="fa-solid fa-gauge-high w-5 text-accentcyan"></i>
@@ -197,15 +197,15 @@
                         <div class="space-y-2 text-xs">
                             <div class="flex justify-between py-1 border-b border-bordercol">
                                 <span class="text-gray-400">Hardening:</span>
-                                <span class="text-warnamber font-medium">Not API-verified</span>
+                                <span id="hardeningStatus">Loading...</span>
                             </div>
                             <div class="flex justify-between py-1 border-b border-bordercol">
                                 <span class="text-gray-400">Log Rotation:</span>
-                                <span class="text-warnamber font-medium">Not API-verified</span>
+                                <span id="logRotationStatus">Loading...</span>
                             </div>
                             <div class="flex justify-between py-1">
                                 <span class="text-gray-400">Scheduled Timer:</span>
-                                <span class="text-warnamber font-medium">Checking API…</span>
+                                <span id="scheduledTimerStatus">Loading...</span>
                             </div>
                         </div>
                         <div class="pt-2 text-right">
@@ -381,15 +381,15 @@
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
                         <div class="bg-darkbg border border-bordercol rounded-lg p-3">
                             <div class="text-gray-400">Local HTTP (Nginx /80)</div>
-                            <div class="text-warnamber font-semibold mt-1">Not API-verified</div>
+                            <div id="network-local-http" class="text-warnamber font-semibold mt-1">Checking API…</div>
                         </div>
                         <div class="bg-darkbg border border-bordercol rounded-lg p-3">
                             <div class="text-gray-400">DNS Resolution (amazon.com)</div>
-                            <div class="text-warnamber font-semibold mt-1">Not API-verified</div>
+                            <div id="network-dns" class="text-warnamber font-semibold mt-1">Checking API…</div>
                         </div>
                         <div class="bg-darkbg border border-bordercol rounded-lg p-3">
                             <div class="text-gray-400">External HTTPS Connectivity</div>
-                            <div class="text-warnamber font-semibold mt-1">Not API-verified</div>
+                            <div id="network-external-https" class="text-warnamber font-semibold mt-1">Checking API…</div>
                         </div>
                     </div>
                 </div>
@@ -506,28 +506,25 @@
                             </div>
                         </div>
                         <span id="cwIntegrationBadge" class="px-3 py-1 rounded-full text-xs font-semibold bg-amber-950 text-warnamber border border-amber-800/50">
-                            Integration Pending
+                            <span id="cw-integration-status">Checking...</span>
                         </span>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
                         <div class="bg-darkbg border border-bordercol rounded-lg p-4">
                             <div class="text-xs text-gray-400">Log Delivery Status</div>
-                            <div class="text-sm font-semibold text-gray-200 mt-1" id="cwLogStatus">Pending configuration</div>
-                        </div>
+                            <div class="text-sm font-semibold text-gray-200 mt-1" id="cwLogStatus">Checking...</div>                        </div>
                         <div class="bg-darkbg border border-bordercol rounded-lg p-4">
                             <div class="text-xs text-gray-400">Active Alarms</div>
-                            <div class="text-sm font-semibold text-gray-200 mt-1" id="cwAlarmState">0 Alarms Configured</div>
-                        </div>
+                            <div class="text-sm font-semibold text-gray-200 mt-1" id="cwAlarmState">Checking...</div>                        </div>
                         <div class="bg-darkbg border border-bordercol rounded-lg p-4">
                             <div class="text-xs text-gray-400">IAM Instance Role</div>
-                            <div class="text-sm font-semibold text-gray-200 mt-1 font-mono">LinuxMonitorEC2Role</div>
-                        </div>
+                            <div class="text-sm font-semibold text-gray-200 mt-1 font-mono"><span id="cw-iam-role">Checking...</span></div>                        </div>
                     </div>
 
                     <div class="pt-3 border-t border-bordercol flex flex-col sm:flex-row items-center justify-between gap-3">
                         <p class="text-xs text-gray-400">
-                            Until the CloudWatch Agent is fully provisioned on the Ubuntu EC2 instance, metrics and logs remain stored locally in structured status files.
+                            CloudWatch integration status is retrieved from the monitoring API. Metrics and logs are available when the EC2 agent is configured and publishing data.d logs remain stored locally in structured status files.
                         </p>
                         <a href="https://console.aws.amazon.com/cloudwatch/" target="_blank" rel="noopener noreferrer" class="bg-darkbg hover:bg-bordercol border border-bordercol text-accentcyan hover:text-white px-4 py-2 rounded-lg text-xs font-medium flex items-center space-x-2 transition shrink-0">
                             <span>Open AWS CloudWatch Console</span>
@@ -539,11 +536,10 @@
                 <!-- CloudWatch Metrics Placeholder Card -->
                 <div class="bg-slatepanel border border-bordercol rounded-xl p-5 shadow-sm space-y-3">
                     <h3 class="font-bold text-sm text-white">Configured CloudWatch Metric Namespace</h3>
-                    <p class="text-xs text-gray-400">Once active, the CloudWatch Agent publishes custom metrics under <code class="text-accentcyan">CWAgent / LinuxServerMonitor</code>.</p>
+                    <p class="text-xs text-gray-400">Once active, the CloudWatch Agent publishes custom metrics under <code class="text-accentcyan">LinuxServerMonitoring</code>.</p>
                     <div class="bg-darkbg border border-bordercol rounded-lg p-3 text-xs font-mono text-gray-300 space-y-1">
-                        <div>Namespace: <span class="text-white">LinuxServerMonitor/EC2</span></div>
-                        <div>Metrics: <span class="text-gray-400">cpu_usage, mem_used_percent, disk_used_percent</span></div>
-                        <div>Log Group: <span class="text-gray-400">/aws/ec2/linux-server-monitor/syslog</span></div>
+                       <div>Namespace: <span class="text-white">LinuxServerMonitoring</span></div>
+                        <div>Metrics: <span class="text-gray-400">mem_used_percent, disk_used_percent</span></div>                        <div>Log Group: <span class="text-gray-400">/linux-server-monitoring/system</span></div>
                     </div>
                 </div>
             </div>
@@ -563,7 +559,7 @@
                     <i class="fa-solid fa-xmark text-lg"></i>
                 </button>
             </div>
-            
+
             <div class="flex-1 p-6 overflow-y-auto space-y-6 text-xs text-gray-300">
                 <!-- Section 1 -->
                 <div class="space-y-2">
@@ -593,7 +589,7 @@ def api_metrics():
     mem = psutil.virtual_memory()
     disk = psutil.disk_usage('/')
     load = [round(x, 2) for x in os.getloadavg()] if hasattr(os, 'getloadavg') else [0.0, 0.0, 0.0]
-    
+
     return jsonify({
         "cpu_percent": cpu,
         "memory_percent": mem.percent,
@@ -784,10 +780,10 @@ WantedBy=multi-user.target
             currentTab = tabId;
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('bg-bordercol', 'text-white'));
-            
+
             const targetTab = document.getElementById(`tab-${tabId}`);
             if (targetTab) targetTab.classList.add('active');
-            
+
             const targetBtn = document.querySelector(`[data-tab="${tabId}"]`);
             if (targetBtn) targetBtn.classList.add('bg-bordercol', 'text-white');
 
@@ -846,8 +842,90 @@ WantedBy=multi-user.target
         let refreshInProgress = false;
 
         // Data fetching / refreshing orchestrator. Never silently replace failed API data with mock data.
+
+async function refreshNetworkDiagnostics() {
+    const fields = {
+        local_http: "network-local-http",
+        dns: "network-dns",
+        external_https: "network-external-https"
+    };
+
+    try {
+        const response = await fetch("/api/status", { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const data = await response.json();
+        const diagnostics = data.network_diagnostics || {};
+
+        for (const [key, id] of Object.entries(fields)) {
+            const element = document.getElementById(id);
+            if (!element) continue;
+
+            const value = diagnostics[key] || "UNKNOWN";
+            element.textContent = value.replaceAll("_", " ");
+            element.className =
+                "font-semibold mt-1 " +
+                (value === "CONNECTED"
+                    ? "text-healthgreen"
+                    : value === "FAILED"
+                        ? "text-red-500"
+                        : "text-warnamber");
+        }
+    } catch (error) {
+        for (const id of Object.values(fields)) {
+            const element = document.getElementById(id);
+            if (element) {
+                element.textContent = "UNAVAILABLE";
+                element.className = "font-semibold mt-1 text-red-500";
+            }
+        }
+        console.error("Network diagnostics check failed:", error);
+    }
+}
+
+async function refreshCloudWatchStatus() {
+    const statusEl = document.getElementById("cw-integration-status");
+    if (!statusEl) return;
+
+    try {
+        const response = await fetch("/api/cloudwatch/status");
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const data = await response.json();
+
+        statusEl.textContent = (data.status || "UNKNOWN").replaceAll("_", " ");
+
+        const logEl = document.getElementById("cwLogStatus");
+        if (logEl) logEl.textContent = data.log_delivery || "UNKNOWN";
+
+        const alarmEl = document.getElementById("cwAlarmState");
+        if (alarmEl) {
+            const count = Number(data.alarms_count);
+            alarmEl.textContent = Number.isFinite(count)
+                ? `${count} Alarm${count === 1 ? "" : "s"} Configured`
+                : "UNKNOWN";
+        }
+
+        const roleEl = document.getElementById("cw-iam-role");
+        if (roleEl) roleEl.textContent = data.iam_role || "Unknown";
+
+    } catch (error) {
+        statusEl.textContent = "UNAVAILABLE";
+
+        const logEl = document.getElementById("cwLogStatus");
+        if (logEl) logEl.textContent = "UNAVAILABLE";
+
+        const alarmEl = document.getElementById("cwAlarmState");
+        if (alarmEl) alarmEl.textContent = "UNAVAILABLE";
+
+        console.error("CloudWatch status check failed:", error);
+    }
+}
+
         async function refreshAllData() {
-            if (refreshInProgress) return;
+            refreshCloudWatchStatus();
+            refreshNetworkDiagnostics();
+           if (refreshInProgress) return;
             refreshInProgress = true;
             try {
                 let data;
@@ -954,6 +1032,43 @@ WantedBy=multi-user.target
         }
 
         function renderOverview(data) {
+        const healthCheck = data.health_check || {};
+        const healthElement = document.getElementById('healthScriptStatus');
+
+        if (healthElement) {
+          const healthStatus = healthCheck.status || 'UNKNOWN';
+
+          healthElement.textContent = healthStatus;
+          healthElement.className =
+             'font-mono ' +
+             (healthStatus === 'HEALTHY'
+                 ? 'text-healthgreen'
+                 : healthStatus === 'CRITICAL'
+                      ? 'text-red-500'
+                      : 'text-warnamber');
+         }
+const environment = data.environment || {};
+
+const environmentFields = {
+    hardeningStatus: environment.hardening,
+    logRotationStatus: environment.log_rotation,
+    scheduledTimerStatus: environment.scheduled_timer
+};
+
+for (const [id, status] of Object.entries(environmentFields)) {
+    const element = document.getElementById(id);
+    if (!element) continue;
+
+    const value = (status || 'UNKNOWN').replaceAll('_', ' ');
+    element.textContent = value;
+
+    const good = ['UFW ACTIVE', 'CONFIGURED', 'RUNNING'].includes(value);
+
+    element.className =
+        'font-medium ' +
+        (good ? 'text-healthgreen' :
+         value === 'UNKNOWN' ? 'text-warnamber' : 'text-red-500');
+}
             const m = data.metrics || {};
             const s = data.status || {};
             const health = s.overall_health || 'UNKNOWN';

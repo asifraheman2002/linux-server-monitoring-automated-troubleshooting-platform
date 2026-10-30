@@ -172,6 +172,31 @@ resource "aws_iam_role_policy_attachment" "cloudwatch_agent" {
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
 }
 
+
+resource "aws_iam_role_policy" "cloudwatch_dashboard_read" {
+  name = "linux-monitoring-cloudwatch-dashboard-read"
+  role = aws_iam_role.monitoring.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:ListMetrics",
+          "cloudwatch:DescribeAlarms",
+          "cloudwatch:GetMetricStatistics",
+          "cloudwatch:GetMetricData",
+          "logs:DescribeLogGroups",
+          "logs:DescribeLogStreams",
+          "logs:GetLogEvents"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 resource "aws_iam_instance_profile" "monitoring" {
   name = "linux-monitoring-instance-profile"
   role = aws_iam_role.monitoring.name

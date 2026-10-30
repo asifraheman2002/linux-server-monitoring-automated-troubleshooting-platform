@@ -30,14 +30,23 @@ override.tf.json
 *_override.tf.json
 .terraformrc
 terraform.rc
+*.tfstate.backup
+*.plan
 
 # Logs and backups
 logs/
 *.log
 backups/
 
+# SSH and private key files
+id_rsa
+id_ed25519
+
 # Editors and operating systems
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local Terraform variables
+*.tfvars
