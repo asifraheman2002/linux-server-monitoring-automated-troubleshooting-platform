@@ -2,7 +2,8 @@
 
 **A Linux server monitoring and automation solution deployed on AWS EC2, combining Bash scripting, Python Flask, systemd, Nginx, Terraform, and Amazon CloudWatch.**
 
-![Linux Server Monitoring Architecture](architecture/LinuxServerMonitoringAchitecture.png)
+![Linux Server Monitoring Architecture](architecture/LinuxServerMonitoringArchitecture.png)
+
 
 ---
 
