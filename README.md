@@ -711,7 +711,7 @@ Interested in Cloud Support Engineering, Cloud Operations, Linux Administration,
 
 **GitHub:** [github.com/asifraheman2002](https://github.com/asifraheman2002)
 
-**Project Repository:** [Linux Server Monitoring](https://github.com/asifraheman2002/linux-server-monitoring-automated-troubleshooting-platform)
+**Project Repository:** [Linux Server Monitoring & Automated Troubleshooting Platform](https://github.com/asifraheman2002/linux-server-monitoring-automated-troubleshooting-platform)
 ---
 
 ## 15. License
